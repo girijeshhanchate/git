@@ -1,0 +1,1706 @@
+<!DOCTYPE html>
+<html>
+	<head>
+        <meta http-equiv="content-type" content="text/html; charset=UTF-8" />
+		<title>BerlinClock Test Execution Report</title>
+        <script type="text/javascript" src="http://code.jquery.com/jquery-1.6.2.min.js"></script>
+        <script type="text/javascript">
+            /**
+            * jQuery.fn.sortElements
+            * --------------
+            * #author James Padolsey (http://james.padolsey.com)
+            * #version 0.11
+            * #updated 18-MAR-2010
+            * #url https://raw.github.com/jamespadolsey/jQuery-Plugins/master/sortElements/jquery.sortElements.js
+            * --------------
+            * #param Function comparator:
+            *   Exactly the same behaviour as [1,2,3].sort(comparator)
+            *   
+            * #param Function getSortable
+            *   A function that should return the element that is
+            *   to be sorted. The comparator will run on the
+            *   current collection, but you may want the actual
+            *   resulting sort to occur on a parent or another
+            *   associated element.
+            *   
+            *   E.g. $('td').sortElements(comparator, function(){
+            *      return this.parentNode; 
+            *   })
+            *   
+            *   The <td>'s parent (<tr>) will be sorted instead
+            *   of the <td> itself.
+            */
+            jQuery.fn.sortElements = (function () {
+
+                var sort = [].sort;
+
+                return function (comparator, getSortable) {
+
+                    getSortable = getSortable || function () { return this; };
+
+                    var placements = this.map(function () {
+
+                        var sortElement = getSortable.call(this),
+                parentNode = sortElement.parentNode,
+
+                        // Since the element itself will change position, we have
+                        // to have some way of storing it's original position in
+                        // the DOM. The easiest way is to have a 'flag' node:
+                nextSibling = parentNode.insertBefore(
+                    document.createTextNode(''),
+                    sortElement.nextSibling
+                );
+
+                        return function () {
+
+                            if (parentNode === this) {
+                                throw new Error(
+                        "You can't sort elements if any one is a descendant of another."
+                    );
+                            }
+
+                            // Insert before flag:
+                            parentNode.insertBefore(this, nextSibling);
+                            // Remove flag:
+                            parentNode.removeChild(nextSibling);
+
+                        };
+
+                    });
+
+                    return sort.call(this, comparator).each(function (i) {
+                        placements[i].call(getSortable.call(this));
+                    });
+
+                };
+
+            })();
+        </script>
+        <script type="text/javascript">
+            jQuery.fn.setBarSizes = (function () {
+                return function (metricName, maxBarSize, min) {
+                    var max = Math.max.apply(Math, $.makeArray($(this).map(function () { return Number($(this).attr('data-sr-' + metricName)); })));
+                    var scale = 1.0;
+                    while (max > 0.0 && max <= 10.0) {
+                        scale = scale * 10.0;
+                        max = max * 10.0;
+                    }
+                    max = (Math.ceil(max / 2) * 2) / scale;
+
+                    this.each(function () {
+                        var barAnchor = $(this).find('a');
+                        var actual = $(this).attr('data-sr-' + metricName);
+                        var newHeight = Math.max(Math.round(maxBarSize * (actual - min) / (max - min)), 2);
+                        barAnchor.css({ height: newHeight });
+                    });
+
+                    var unit = "";
+                    if (metricName.substr(metricName.length - 4, 4) === "time")
+                        unit = "s";
+
+                    $('#testview .scale-min-label').each(function () {
+                        $(this).text(min.toString() + unit);
+                    });
+                    $('#testview .scale-max-label').each(function () {
+                        $(this).text(max.toString() + unit);
+                    });
+                    var mid = max / 2;
+                    $('#testview .scale-mid-label').each(function () {
+                        $(this).text(mid.toString() + unit);
+                    });
+                };
+            })();
+
+            function getComparer(metricName, isDesc) {
+                return function (a, b) {
+                    var aNumber = Number($(a).attr('data-sr-' + metricName));
+                    var bNumber = Number($(b).attr('data-sr-' + metricName));
+                    var result = aNumber > bNumber ? 1 : (aNumber < bNumber ? -1 : 0);
+                    if (isDesc)
+                        result = -1 * result;
+
+                    if (result == 0 && metricName != "order")
+                        result = getComparer("order", false)(a, b);
+
+                    return result;
+                };
+            }
+
+            var currentSort = "";
+            function doSort(allowToggleDesc) {
+                var newSort = $("input[name='barSortOrder']:checked").val();
+                if (allowToggleDesc && currentSort == newSort) {
+                    $('#barSortDesc').click();
+                    doSort(false);
+                    return;
+                }
+                currentSort = newSort;
+                $('#testview td.testview-item').sortElements(getComparer(newSort, $('#barSortDesc').is(':checked')));
+            }
+
+
+            function doSetHeights(allowSort) {
+                var selectedMetric = $("input[name='barHeight']:checked").val();
+                $('#testview td.testview-item').setBarSizes(selectedMetric, 60, 0.0);
+
+                if (allowSort && currentSort != selectedMetric) {
+                    var $radios = $("input[name='barSortOrder']");
+                    $radios.filter('[value=' + selectedMetric + ']').attr('checked', true);
+                    $("#barSortDesc").attr("checked", [true]);
+                    doSort(false);
+                }
+            }
+
+            $(document).ready(function () {
+                $("input[name='barSortOrder']").click(function () { doSort(true); return true; });
+                $("input[name='barSortDesc']").change(function () { doSort(false); });
+                $("input[name='barHeight']").change(function () { doSetHeights(true); });
+
+                doSort(false);
+                doSetHeights(false);
+
+                $("div.scrollable").css({ 'overflow': 'auto' });
+            });
+        </script>
+
+        <style type="text/css">
+            body 
+            {
+                color: #000000;
+                font-family: Arial,Liberation Sans,DejaVu Sans,sans-serif;
+                line-height: 130%;
+            }
+            h1 {
+                font-family: Trebuchet MS,Liberation Sans,DejaVu Sans,sans-serif;
+                font-size: 170%;
+                font-weight: bold;
+            }            
+            h2 {
+                font-family: Trebuchet MS,Liberation Sans,DejaVu Sans,sans-serif;
+                font-size: 130%;
+                font-weight: bold;
+                margin-bottom: 5px;
+            }            
+            h3 {
+                font-family: Trebuchet MS,Liberation Sans,DejaVu Sans,sans-serif;
+                font-size: 120%;
+                font-weight: bold;
+                margin-bottom: 5px;
+            }            
+            a.bar
+            {
+                text-decoration: none;
+                display: block;
+                line-height: 1px;
+            }
+            .description
+            {
+                font-style: italic;
+            }
+            .log 
+            {
+                width: 600px;
+                white-space: pre-wrap;
+                display: block;
+                margin: 0px;
+            }
+            .errorMessage 
+            {
+                width: 600px;
+                color: Red;
+                font-weight: bold;
+            }
+            .stackTrace 
+            {
+                width: 600px;
+                white-space: pre-wrap;
+                font-style: italic;
+                color: Red;
+                display: block;
+            }
+            table.testEvents
+            {
+                border: solid 1px #e8eef4;
+                border-collapse: collapse;
+            }
+            table.testEvents td
+            {
+                vertical-align: top;
+                padding: 5px;
+                border: solid 1px #e8eef4;
+            }
+            table.testEvents th
+            {
+                padding: 6px 5px;
+                text-align: left;
+                background-color: #e8eef4;
+                border: solid 1px #e8eef4;                
+            }
+            .comment
+            {
+                font-style: italic;
+                font-size: smaller;
+            }
+            .startupBar
+            {
+                background-color: #EEEEEE;
+                cursor: default;
+            }
+            
+            .colorSucceeded
+            {
+                background-color: #90ED7B;
+            }
+            .colorIgnored
+            {
+                background-color: #FFFF85;
+            }
+            .colorPending
+            {
+                background-color: #D47BED;
+            }
+            .colorNothingToRun
+            {
+                background-color: #CCCCFF;
+            }
+            .colorSkipped
+            {
+                background-color: #CCCCFF;
+            }
+            .colorInconclusive
+            {
+                background-color: #7BEDED;
+            }
+            .colorCleanupFailed
+            {
+                background-color: #FFCCCC;
+            }
+            .colorRandomlyFailed
+            {
+                background-color: #EDB07B;
+            }
+            .colorFailed
+            {
+                background-color: #ED5F5F;
+            }
+            .colorInitializationFailed
+            {
+                background-color: #FF0000;
+            }
+            .colorFrameworkError
+            {
+                background-color: #FF0000;
+            }
+            ul.subNodeLinks
+            {
+                padding-left: 20px;
+                margin: 0px;
+            }
+            ul.subNodeLinks li
+            {
+                list-style: none;
+            }
+            
+            /* views general */
+            div.scrollable
+            {
+                /*overflow: auto; - thsi has to be set from js, because of an IE9 bug */
+            }
+            div.viewbox
+            {
+                position: relative;
+                border: 3px solid #e8eef4;
+            }
+            div.viewbox table
+            {
+                border: 0px;
+            }
+                        
+            /* testview */
+            #testview
+            {
+                padding-top: 23px;
+            }
+            
+            table.testview-items td
+            {
+                vertical-align: bottom;
+                padding: 0px 1px 0px 1px;
+            }
+            td.right-padding, td.left-padding
+            {
+                width: 25px;
+                min-width: 25px;
+            }
+            table.testview-items a.bar
+            {
+                width: 5px;
+            }
+            table.testview-items tr.testview-items-row
+            {
+                height: 60px;
+            }
+            
+            /* scale */
+            table.vertical-scale 
+            {
+                position: absolute;
+                top: 23px;
+                left: 0px;
+                width: 100%;
+                z-index: -100;
+            }
+            table.vertical-scale td, tr.horizontal-scale td
+            {
+                font-size: 60%;
+                line-height: normal;
+            }
+            table.vertical-scale tr.scale-max, table.vertical-scale tr.scale-mid 
+            {
+                height: 30px;
+            }
+            tr.horizontal-scale, table.vertical-scale tr.scale-min 
+            {
+                height: 12px;
+            }
+            
+            td.scale-max-label, td.scale-mid-label, td.scale-min-label
+            {
+                border-top: solid 1px #E6E6E6;
+                text-align: left;
+                vertical-align: top;
+            }
+            td.scale-10-label
+            {
+                border-left: solid 1px #E6E6E6;
+                text-align: left;
+                vertical-align: bottom;
+                padding-left: 1px;
+            }
+            tr.scale-mid td, tr.scale-min td, tr.scale-max td
+            {
+                border-top: solid 1px #E6E6E6;
+            }
+           
+            
+            /* bar-control */
+            #bar-control
+            {
+                font-size: 60%;
+                line-height: normal;
+                position: absolute;
+                right: 0px;
+                top: 0px;
+            }
+            #bar-control label
+            {
+                font-weight: bold;
+                vertical-align: middle;
+            }
+            #bar-control .option
+            {
+                vertical-align: middle;
+                text-transform: lowercase;
+            }
+            #bar-control input[type="checkbox"]
+            {
+                padding: 0 2px 0 3px;
+            }
+            #bar-control input
+            {
+                vertical-align: top;
+                height: 12px;
+                margin: 0px;
+                padding: 0px;
+            }
+            #bar-control div
+            {
+                float: right;
+                margin: 3px 5px 3px 5px;
+            }
+            
+            
+            /* timeline view */
+            #timelineview
+            {
+                padding-top: 5px;
+            }
+            table.timelineview a
+            {
+                height: 20px;
+            }
+            table.timelineview td
+            {
+                vertical-align: bottom;
+                padding: 0px 1px 0px 0px;
+                border: 0px;
+            }
+            tr.thread-items-row
+            {
+                height: 25px;
+            }
+            tr.thread-items-row td
+            {
+                vertical-align: bottom;
+            }
+            td.thread-label
+            {
+                padding: 0px 6px 0px 6px;
+                text-align: right;
+                line-height: 18px;
+                vertical-align: bottom;
+            }
+            th.thread-label
+            {
+                padding: 3px 6px 0px 6px;
+                line-height: 18px;
+                text-align: left;
+                vertical-align: bottom;
+            }
+        </style>
+	</head>
+	<body>
+        <h1>BerlinClock Test Execution Report</h1>
+        <ul>
+            <li>Project: BerlinClock</li>
+            <li>Configuration: Default</li>
+            <li>Test Assemblies: BerlinClock.dll</li>
+            <li>Start Time: 1/27/2016 6:37:25 PM</li>
+            <li>Duration: 00:00:20.7114786</li>
+            <li>Test Threads: 1</li>
+        </ul>
+
+        <h2>Result: 3 failed</h2>
+        <table class="testEvents">
+                <tr>
+        <th colspan="2">Success rate</th>
+        <th>Tests</th>
+        <th>Succeeded</th>
+        <th>Failed</th>
+        <th>Pending</th>
+        <th>Ignored</th>
+        <th>Skipped</th>
+    </tr>
+
+                <tr>
+            <td>
+            0%
+    </td>
+    <td>
+        <table class="timelineview" cellpadding="0" cellspacing="0">
+            <tr>
+                    <td>
+                        <a class="bar colorFailed" 
+                                style="width: 149px;" 
+                                title="3 failed" 
+                                                    href="#error_summary"
+                                />
+                    </td>
+                    <td>
+                        <a class="bar colorSkipped" 
+                                style="width: 49px;" 
+                                title="1 skipped" 
+                                                        />
+                    </td>
+            </tr>
+        </table>
+    </td>
+    <td>4 (test executions: 8)</td>
+    <td>0</td>
+    <td>3</td>
+    <td>0</td>
+    <td>0</td>
+    <td>1</td>
+
+    </tr>
+
+        </table>
+        
+        <h2>Test Timeline Summary</h2>
+
+        <div id="timelineview" class="viewbox">
+            <div class="scrollable">
+                <table cellpadding="0" cellspacing="0">
+                    <tr>
+                        <th class="thread-label" colspan="2">thread</th>
+                    </tr>
+                        <tr class="thread-items-row">
+                            <td class="thread-label" title="Machine: 813FQBJ12">#0</td>
+                            <td colspan="1">
+                                <table class="timelineview" cellpadding="0" cellspacing="0">
+                                    <tr>
+
+                                            <td>
+        <a
+            class="bar startupBar" 
+            style="width: 3px;" 
+                title="test thread startup" 
+        >&nbsp;</a>
+    </td>
+
+    <td>
+        <a
+            class="bar colorFailed" 
+            style="width: 51px;" 
+                title="Midnight 00:00 (in The Berlin Clock)" 
+                href="#t-1791236074.0"
+        >&nbsp;</a>
+    </td>
+    <td>
+        <a
+            class="bar colorFailed" 
+            style="width: 3px;" 
+                title="Midnight 00:00 (in The Berlin Clock) retry #1" 
+                href="#t-1791236074.1"
+        >&nbsp;</a>
+    </td>
+    <td>
+        <a
+            class="bar colorFailed" 
+            style="width: 3px;" 
+                title="Midnight 00:00 (in The Berlin Clock) retry #2" 
+                href="#t-1791236074.2"
+        >&nbsp;</a>
+    </td>
+    <td>
+        <a
+            class="bar colorFailed" 
+            style="width: 3px;" 
+                title="Middle of the afternoon (in The Berlin Clock)" 
+                href="#t-895847477.0"
+        >&nbsp;</a>
+    </td>
+    <td>
+        <a
+            class="bar colorFailed" 
+            style="width: 3px;" 
+                title="Middle of the afternoon (in The Berlin Clock) retry #1" 
+                href="#t-895847477.1"
+        >&nbsp;</a>
+    </td>
+    <td>
+        <a
+            class="bar colorFailed" 
+            style="width: 3px;" 
+                title="Middle of the afternoon (in The Berlin Clock) retry #2" 
+                href="#t-895847477.2"
+        >&nbsp;</a>
+    </td>
+    <td>
+        <a
+            class="bar colorFailed" 
+            style="width: 3px;" 
+                title="Just before midnight (in The Berlin Clock)" 
+                href="#t-161334965.0"
+        >&nbsp;</a>
+    </td>
+                                    </tr>
+                                </table>
+                            </td>
+                        </tr>
+                    <tr class="horizontal-scale">
+                        <td>&nbsp;</td>
+                        <td class="scale-10-label">0s</td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+
+        <h2>Test Result View</h2>
+        <div id="testview" class="viewbox">
+            <div id="bar-control">
+                <div id="bar-control-sort">
+                    <label>sort by:</label>
+                    <span class="option"><input type="radio" name="barSortOrder" value="exectime" />Time</span>
+                    <span class="option"><input type="radio" name="barSortOrder" value="acttime" />Act Time</span>
+                    <span class="option"><input type="radio" name="barSortOrder" value="order" />Execution</span>
+                    <span class="option"><input type="radio" name="barSortOrder" value="rescode" checked="checked" />Result</span>
+                    <span class="option"><input type="checkbox" name="barSortDesc" id="barSortDesc" checked="checked" />desc</span>
+                </div>
+                <div id="bar-control-heights">
+                    <label>heights:</label>
+                    <span class="option"><input type="radio" checked="checked" name="barHeight" value="exectime" />Time</span>
+                    <span class="option"><input type="radio" name="barHeight" value="acttime" />Act Time</span>
+                    
+                </div>
+            </div>
+            <table class="vertical-scale" cellpadding="0" cellspacing="0">
+                <tr class="scale-max">
+                    <td class="left-padding scale-max-label">&nbsp;</td>
+                    <td colspan="8">&nbsp;</td>
+                    <td class="right-padding">&nbsp;</td>
+                </tr>
+                <tr class="scale-mid">
+                    <td class="left-padding scale-mid-label">&nbsp;</td>
+                    <td colspan="8">&nbsp;</td>
+                    <td class="right-padding">&nbsp;</td>
+                </tr>
+                <tr class="scale-min">
+                    <td class="left-padding scale-min-label">&nbsp;</td>
+                    <td colspan="8">&nbsp;</td>
+                    <td class="right-padding">&nbsp;</td>
+                </tr>
+            </table>
+            <div class="scrollable">
+                <table class="testview-items" cellpadding="0" cellspacing="0">
+                    <tr class="testview-items-row">
+                        <td class="left-padding">&nbsp;</td>
+    <td class="testview-item" 
+        data-sr-exectime="0" data-sr-rescode="320" data-sr-order="7" data-sr-acttime="0.0">
+        <a
+            class="bar colorSkipped" 
+            style="height: 2px;"
+            title="Midnight 24:00 (in The Berlin Clock)"
+            href="#t-1890453340.0">&nbsp;</a>
+    </td>
+    <td class="testview-item" 
+        data-sr-exectime="19.9946056" data-sr-rescode="440" data-sr-order="0" data-sr-acttime="0.127">
+        <a
+            class="bar colorFailed" 
+            style="height: 60px;"
+            title="Midnight 00:00 (in The Berlin Clock)"
+            href="#t-1791236074.0">&nbsp;</a>
+    </td>
+    <td class="testview-item" 
+        data-sr-exectime="0.0030011" data-sr-rescode="440" data-sr-order="1" data-sr-acttime="0.0">
+        <a
+            class="bar colorFailed" 
+            style="height: 2px;"
+            title="Midnight 00:00 (in The Berlin Clock) retry #1"
+            href="#t-1791236074.1">&nbsp;</a>
+    </td>
+    <td class="testview-item" 
+        data-sr-exectime="0.0020014" data-sr-rescode="440" data-sr-order="2" data-sr-acttime="0.0">
+        <a
+            class="bar colorFailed" 
+            style="height: 2px;"
+            title="Midnight 00:00 (in The Berlin Clock) retry #2"
+            href="#t-1791236074.2">&nbsp;</a>
+    </td>
+    <td class="testview-item" 
+        data-sr-exectime="0.0030025" data-sr-rescode="440" data-sr-order="3" data-sr-acttime="0.001">
+        <a
+            class="bar colorFailed" 
+            style="height: 2px;"
+            title="Middle of the afternoon (in The Berlin Clock)"
+            href="#t-895847477.0">&nbsp;</a>
+    </td>
+    <td class="testview-item" 
+        data-sr-exectime="0.0020014" data-sr-rescode="440" data-sr-order="4" data-sr-acttime="0.0">
+        <a
+            class="bar colorFailed" 
+            style="height: 2px;"
+            title="Middle of the afternoon (in The Berlin Clock) retry #1"
+            href="#t-895847477.1">&nbsp;</a>
+    </td>
+    <td class="testview-item" 
+        data-sr-exectime="0.0020009" data-sr-rescode="440" data-sr-order="5" data-sr-acttime="0.0">
+        <a
+            class="bar colorFailed" 
+            style="height: 2px;"
+            title="Middle of the afternoon (in The Berlin Clock) retry #2"
+            href="#t-895847477.2">&nbsp;</a>
+    </td>
+    <td class="testview-item" 
+        data-sr-exectime="0.0040027" data-sr-rescode="440" data-sr-order="6" data-sr-acttime="0.001">
+        <a
+            class="bar colorFailed" 
+            style="height: 2px;"
+            title="Just before midnight (in The Berlin Clock)"
+            href="#t-161334965.0">&nbsp;</a>
+    </td>
+                        <td class="right-padding">&nbsp;</td>
+                    </tr>
+                    <tr class="horizontal-scale">
+                        <td class="left-padding">&nbsp;</td>
+                        <td colspan="10">&nbsp;</td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+
+        <h2>Feature Summary</h2>
+        <table class="testEvents">
+                <tr>
+            <th>Feature</th>
+        <th colspan="2">Success rate</th>
+        <th>Tests</th>
+        <th>Succeeded</th>
+        <th>Failed</th>
+        <th>Pending</th>
+        <th>Ignored</th>
+        <th>Skipped</th>
+    </tr>
+
+    <tr>
+            <td><a href="#f-649433326">The Berlin Clock</a></td>
+            <td>
+            0%
+    </td>
+    <td>
+        <table class="timelineview" cellpadding="0" cellspacing="0">
+            <tr>
+                    <td>
+                        <a class="bar colorFailed" 
+                                style="width: 149px;" 
+                                title="3 failed" 
+                                                    href="#error_summary"
+                                />
+                    </td>
+                    <td>
+                        <a class="bar colorSkipped" 
+                                style="width: 49px;" 
+                                title="1 skipped" 
+                                                        />
+                    </td>
+            </tr>
+        </table>
+    </td>
+    <td>4 (test executions: 8)</td>
+    <td>0</td>
+    <td>3</td>
+    <td>0</td>
+    <td>0</td>
+    <td>1</td>
+
+    </tr>
+        </table>
+
+        <a name="error_summary" />
+        <h2>Error Summary</h2>
+        <table class="testEvents">
+                <tr>
+            <th>Test</th>
+        <th colspan="2">Success rate</th>
+        <th>Tests</th>
+        <th>Succeeded</th>
+        <th>Failed</th>
+        <th>Pending</th>
+        <th>Ignored</th>
+        <th>Skipped</th>
+    </tr>
+
+                <tr>
+                    <td>
+                        <a href="#t-1791236074.0">Midnight 00:00 (in BerlinClock, The Berlin Clock)</a>
+                            <a href="#t-1791236074.1">retry #1</a>
+                            <a href="#t-1791236074.2">retry #2</a>
+                    </td>
+                        <td>
+            0%
+    </td>
+    <td>
+        <table class="timelineview" cellpadding="0" cellspacing="0">
+            <tr>
+                    <td>
+                        <a class="bar colorFailed" 
+                                style="width: 199px;" 
+                                title="1 failed" 
+                                                    href="#error_summary"
+                                />
+                    </td>
+            </tr>
+        </table>
+    </td>
+    <td>1 (test executions: 3)</td>
+    <td>0</td>
+    <td>1</td>
+    <td>0</td>
+    <td>0</td>
+    <td>0</td>
+
+                </tr>
+                <tr>
+                    <td colspan="9" style="padding-left: 20px;"><div class="errorMessage">Error: Assert.AreEqual failed. Expected:&lt;Y
+OOOO
+OOOO
+OOOOOOOOOOO
+OOOO&gt;. Actual:&lt;Y
+OOOO
+OOOO
+OOOOOOOOOOO
+OOOO&gt;. </div></td>
+                </tr>
+                <tr>
+                    <td>
+                        <a href="#t-895847477.0">Middle of the afternoon (in BerlinClock, The Berlin Clock)</a>
+                            <a href="#t-895847477.1">retry #1</a>
+                            <a href="#t-895847477.2">retry #2</a>
+                    </td>
+                        <td>
+            0%
+    </td>
+    <td>
+        <table class="timelineview" cellpadding="0" cellspacing="0">
+            <tr>
+                    <td>
+                        <a class="bar colorFailed" 
+                                style="width: 199px;" 
+                                title="1 failed" 
+                                                    href="#error_summary"
+                                />
+                    </td>
+            </tr>
+        </table>
+    </td>
+    <td>1 (test executions: 3)</td>
+    <td>0</td>
+    <td>1</td>
+    <td>0</td>
+    <td>0</td>
+    <td>0</td>
+
+                </tr>
+                <tr>
+                    <td colspan="9" style="padding-left: 20px;"><div class="errorMessage">Error: Assert.AreEqual failed. Expected:&lt;O
+RROO
+RRRO
+YYROOOOOOOO
+YYOO&gt;. Actual:&lt;O
+RROO
+RRRO
+YYROOOOOOOO
+YYOO&gt;. </div></td>
+                </tr>
+                <tr>
+                    <td>
+                        <a href="#t-161334965.0">Just before midnight (in BerlinClock, The Berlin Clock)</a>
+                    </td>
+                        <td>
+            0%
+    </td>
+    <td>
+        <table class="timelineview" cellpadding="0" cellspacing="0">
+            <tr>
+                    <td>
+                        <a class="bar colorFailed" 
+                                style="width: 199px;" 
+                                title="1 failed" 
+                                                    href="#error_summary"
+                                />
+                    </td>
+            </tr>
+        </table>
+    </td>
+    <td>1</td>
+    <td>0</td>
+    <td>1</td>
+    <td>0</td>
+    <td>0</td>
+    <td>0</td>
+
+                </tr>
+                <tr>
+                    <td colspan="9" style="padding-left: 20px;"><div class="errorMessage">Error: Assert.AreEqual failed. Expected:&lt;O
+RRRR
+RRRO
+YYRYYRYYRYY
+YYYY&gt;. Actual:&lt;O
+RRRR
+RRRO
+YYRYYRYYRYY
+YYYY&gt;. </div></td>
+                </tr>
+        </table>
+
+        <h2>Scenario Summary</h2>
+            <a name="f-649433326" />
+            <h3>Feature: The Berlin Clock</h3>
+                <div class="description">
+                    	As a clock enthusiast
+    I want to tell the time using the Berlin Clock
+    So that I can increase the number of ways that I can read the time
+                </div>
+            <table class="testEvents">
+                    <tr>
+            <th>Test</th>
+        <th colspan="2">Success rate</th>
+        <th>Tests</th>
+        <th>Succeeded</th>
+        <th>Failed</th>
+        <th>Pending</th>
+        <th>Ignored</th>
+        <th>Skipped</th>
+    </tr>
+
+                    <tr>
+                        <td>
+                                    <a href="#t-1791236074.0">Scenario: Midnight 00:00</a>
+            <a href="#t-1791236074.1">retry #1</a>
+            <a href="#t-1791236074.2">retry #2</a>
+
+                        </td>
+                            <td>
+            0%
+    </td>
+    <td>
+        <table class="timelineview" cellpadding="0" cellspacing="0">
+            <tr>
+                    <td>
+                        <a class="bar colorFailed" 
+                                style="width: 199px;" 
+                                title="1 failed" 
+                                                    href="#error_summary"
+                                />
+                    </td>
+            </tr>
+        </table>
+    </td>
+    <td>1 (test executions: 3)</td>
+    <td>0</td>
+    <td>1</td>
+    <td>0</td>
+    <td>0</td>
+    <td>0</td>
+
+                    </tr>
+                    <tr>
+                        <td>
+                                    <a href="#t-895847477.0">Scenario: Middle of the afternoon</a>
+            <a href="#t-895847477.1">retry #1</a>
+            <a href="#t-895847477.2">retry #2</a>
+
+                        </td>
+                            <td>
+            0%
+    </td>
+    <td>
+        <table class="timelineview" cellpadding="0" cellspacing="0">
+            <tr>
+                    <td>
+                        <a class="bar colorFailed" 
+                                style="width: 199px;" 
+                                title="1 failed" 
+                                                    href="#error_summary"
+                                />
+                    </td>
+            </tr>
+        </table>
+    </td>
+    <td>1 (test executions: 3)</td>
+    <td>0</td>
+    <td>1</td>
+    <td>0</td>
+    <td>0</td>
+    <td>0</td>
+
+                    </tr>
+                    <tr>
+                        <td>
+                                    <a href="#t-161334965.0">Scenario: Just before midnight</a>
+
+                        </td>
+                            <td>
+            0%
+    </td>
+    <td>
+        <table class="timelineview" cellpadding="0" cellspacing="0">
+            <tr>
+                    <td>
+                        <a class="bar colorFailed" 
+                                style="width: 199px;" 
+                                title="1 failed" 
+                                                    href="#error_summary"
+                                />
+                    </td>
+            </tr>
+        </table>
+    </td>
+    <td>1</td>
+    <td>0</td>
+    <td>1</td>
+    <td>0</td>
+    <td>0</td>
+    <td>0</td>
+
+                    </tr>
+                    <tr>
+                        <td>
+                                    <a href="#t-1890453340.0">Scenario: Midnight 24:00</a>
+
+                        </td>
+                            <td>
+            n/a
+    </td>
+    <td>
+        <table class="timelineview" cellpadding="0" cellspacing="0">
+            <tr>
+                    <td>
+                        <a class="bar colorSkipped" 
+                                style="width: 199px;" 
+                                title="1 skipped" 
+                                                        />
+                    </td>
+            </tr>
+        </table>
+    </td>
+    <td>1</td>
+    <td>0</td>
+    <td>0</td>
+    <td>0</td>
+    <td>0</td>
+    <td>1</td>
+
+                    </tr>
+            </table>
+
+        <h2>Execution Details</h2>
+            <a name="t-1791236074.0" />
+            <h3>Scenario: Midnight 00:00 (in BerlinClock, The Berlin Clock)</h3>
+            <ul>
+                <li>Status: Failed</li>
+                <li>Start time: 1/27/2016 6:37:26 PM</li>
+                <li>Execution time (sec): 19.9946056</li>
+                <li>Thread: #0</li>
+                <li>Error: Assert.AreEqual failed. Expected:&lt;Y
+OOOO
+OOOO
+OOOOOOOOOOO
+OOOO&gt;. Actual:&lt;Y
+OOOO
+OOOO
+OOOOOOOOOOO
+OOOO&gt;. </li>
+            </ul>
+            <table class="testEvents">
+                <tr>
+                    <th>Steps</th>
+                    <th>Trace</th>
+                    <th>Result</th>
+                </tr>
+                    <tr>
+                        <td>
+                            <pre class="log">When the time is &quot;00:00:00&quot;</pre>
+                        </td>
+                        <td>
+                            <!-- [TestAct: Scenario - Midnight 00:00] -->
+                            <pre class="log">done: TheBerlinClockSteps.WhenTheTimeIs(&quot;00:00:00&quot;) (0.0s)</pre>
+                        </td>
+                        <td>Succeeded in 0.127s</td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <pre class="log">Then the clock should look like
+  --- multiline step argument ---
+  Y
+  OOOO
+  OOOO
+  OOOOOOOOOOO
+  OOOO</pre>
+                        </td>
+                        <td>
+                            <!-- [TestAssert: Scenario - Midnight 00:00] -->
+                            <pre class="log">error: Assert.AreEqual failed. Expected:&lt;Y
+OOOO
+OOOO
+OOOOOOOOOOO
+OOOO&gt;. Actual:&lt;Y
+OOOO
+OOOO
+OOOOOOOOOOO
+OOOO&gt;.</pre>
+                                <div class="errorMessage">Assert.AreEqual failed. Expected:&lt;Y
+OOOO
+OOOO
+OOOOOOOOOOO
+OOOO&gt;. Actual:&lt;Y
+OOOO
+OOOO
+OOOOOOOOOOO
+OOOO&gt;. </div>
+                                <pre class="stackTrace">Microsoft.VisualStudio.TestTools.UnitTesting.AssertFailedException: Assert.AreEqual failed. Expected:&lt;Y
+OOOO
+OOOO
+OOOOOOOOOOO
+OOOO&gt;. Actual:&lt;Y
+OOOO
+OOOO
+OOOOOOOOOOO
+OOOO&gt;. 
+   at Microsoft.VisualStudio.TestTools.UnitTesting.Assert.HandleFailure(String assertionName, String message)
+   at Microsoft.VisualStudio.TestTools.UnitTesting.Assert.AreEqual[T](T expected, T actual, String message, Object[] parameters)
+   at Microsoft.VisualStudio.TestTools.UnitTesting.Assert.AreEqual[T](T expected, T actual)
+   at BerlinClock.TheBerlinClockSteps.ThenTheClockShouldLookLike(String theExpectedBerlinClockOutput) in c:\git\DotNetBerlinClock\BDD\BerlinClockFeatureSteps.cs:line 25
+   at lambda_method(Closure , IContextManager , String )
+   at TechTalk.SpecFlow.Bindings.BindingInvoker.InvokeBinding(IBinding binding, IContextManager contextManager, Object[] arguments, ITestTracer testTracer, TimeSpan&amp; duration)
+   at TechTalk.SpecFlow.Infrastructure.TestExecutionEngine.ExecuteStepMatch(BindingMatch match, Object[] arguments)
+   at TechTalk.SpecFlow.Infrastructure.TestExecutionEngine.ExecuteStep(StepInstance stepInstance)
+   at TechTalk.SpecFlow.Infrastructure.TestExecutionEngine.OnAfterLastStep()
+   at TechTalk.SpecFlow.TestRunner.CollectScenarioErrors()
+   at BerlinClock.BDD.TheBerlinClockFeature.ScenarioCleanup() in c:\git\DotNetBerlinClock\BDD\BerlinClockFeatureSteps.feature.cs:line 0
+   at BerlinClock.BDD.TheBerlinClockFeature.Midnight0000() in c:\git\DotNetBerlinClock\BDD\BerlinClockFeatureSteps.feature:line 10
+   at TechTalk.SpecRun.Framework.TaskExecutors.StaticOrInstanceMethodExecutor.ExecuteInternal(ITestThreadExecutionContext testThreadExecutionContext) in c:\TeamCity\BuildAgent\work\245a3e4d646c0875\TechTalk.SpecRun.Framework.Interfaces\TaskExecutors\StaticOrInstanceMethodExecutor.cs:line 40
+   at TechTalk.SpecRun.Framework.TaskExecutors.StaticOrInstanceMethodExecutor.Execute(ITestThreadExecutionContext testThreadExecutionContext) in c:\TeamCity\BuildAgent\work\245a3e4d646c0875\TechTalk.SpecRun.Framework.Interfaces\TaskExecutors\StaticOrInstanceMethodExecutor.cs:line 21
+   at TechTalk.SpecRun.Framework.TestAssemblyExecutor.ExecuteTestNodeTask(TestNode testNode, ITaskExecutor task, TraceEventType eventType) in c:\TeamCity\BuildAgent\work\245a3e4d646c0875\TechTalk.SpecRun.Framework.Executor\TestAssemblyExecutor.cs:line 215</pre>
+                        </td>
+                        <td>Failed in 19.572s</td>
+                    </tr>
+            </table>
+            <a name="t-1791236074.1" />
+            <h3>Scenario: Midnight 00:00 (in BerlinClock, The Berlin Clock) retry #1</h3>
+            <ul>
+                <li>Status: Failed</li>
+                <li>Start time: 1/27/2016 6:37:46 PM</li>
+                <li>Execution time (sec): 0.0030011</li>
+                <li>Thread: #0</li>
+                <li>Error: Assert.AreEqual failed. Expected:&lt;Y
+OOOO
+OOOO
+OOOOOOOOOOO
+OOOO&gt;. Actual:&lt;Y
+OOOO
+OOOO
+OOOOOOOOOOO
+OOOO&gt;. </li>
+            </ul>
+            <table class="testEvents">
+                <tr>
+                    <th>Steps</th>
+                    <th>Trace</th>
+                    <th>Result</th>
+                </tr>
+                    <tr>
+                        <td>
+                            <pre class="log">When the time is &quot;00:00:00&quot;</pre>
+                        </td>
+                        <td>
+                            <!-- [TestAct: Scenario - Midnight 00:00] -->
+                            <pre class="log">done: TheBerlinClockSteps.WhenTheTimeIs(&quot;00:00:00&quot;) (0.0s)</pre>
+                        </td>
+                        <td>Succeeded in 0s</td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <pre class="log">Then the clock should look like
+  --- multiline step argument ---
+  Y
+  OOOO
+  OOOO
+  OOOOOOOOOOO
+  OOOO</pre>
+                        </td>
+                        <td>
+                            <!-- [TestAssert: Scenario - Midnight 00:00] -->
+                            <pre class="log">error: Assert.AreEqual failed. Expected:&lt;Y
+OOOO
+OOOO
+OOOOOOOOOOO
+OOOO&gt;. Actual:&lt;Y
+OOOO
+OOOO
+OOOOOOOOOOO
+OOOO&gt;.</pre>
+                                <div class="errorMessage">Assert.AreEqual failed. Expected:&lt;Y
+OOOO
+OOOO
+OOOOOOOOOOO
+OOOO&gt;. Actual:&lt;Y
+OOOO
+OOOO
+OOOOOOOOOOO
+OOOO&gt;. </div>
+                                <pre class="stackTrace">Microsoft.VisualStudio.TestTools.UnitTesting.AssertFailedException: Assert.AreEqual failed. Expected:&lt;Y
+OOOO
+OOOO
+OOOOOOOOOOO
+OOOO&gt;. Actual:&lt;Y
+OOOO
+OOOO
+OOOOOOOOOOO
+OOOO&gt;. 
+   at Microsoft.VisualStudio.TestTools.UnitTesting.Assert.HandleFailure(String assertionName, String message)
+   at Microsoft.VisualStudio.TestTools.UnitTesting.Assert.AreEqual[T](T expected, T actual, String message, Object[] parameters)
+   at Microsoft.VisualStudio.TestTools.UnitTesting.Assert.AreEqual[T](T expected, T actual)
+   at BerlinClock.TheBerlinClockSteps.ThenTheClockShouldLookLike(String theExpectedBerlinClockOutput) in c:\git\DotNetBerlinClock\BDD\BerlinClockFeatureSteps.cs:line 25
+   at lambda_method(Closure , IContextManager , String )
+   at TechTalk.SpecFlow.Bindings.BindingInvoker.InvokeBinding(IBinding binding, IContextManager contextManager, Object[] arguments, ITestTracer testTracer, TimeSpan&amp; duration)
+   at TechTalk.SpecFlow.Infrastructure.TestExecutionEngine.ExecuteStepMatch(BindingMatch match, Object[] arguments)
+   at TechTalk.SpecFlow.Infrastructure.TestExecutionEngine.ExecuteStep(StepInstance stepInstance)
+   at TechTalk.SpecFlow.Infrastructure.TestExecutionEngine.OnAfterLastStep()
+   at TechTalk.SpecFlow.TestRunner.CollectScenarioErrors()
+   at BerlinClock.BDD.TheBerlinClockFeature.ScenarioCleanup() in c:\git\DotNetBerlinClock\BDD\BerlinClockFeatureSteps.feature.cs:line 0
+   at BerlinClock.BDD.TheBerlinClockFeature.Midnight0000() in c:\git\DotNetBerlinClock\BDD\BerlinClockFeatureSteps.feature:line 10
+   at TechTalk.SpecRun.Framework.TaskExecutors.StaticOrInstanceMethodExecutor.ExecuteInternal(ITestThreadExecutionContext testThreadExecutionContext) in c:\TeamCity\BuildAgent\work\245a3e4d646c0875\TechTalk.SpecRun.Framework.Interfaces\TaskExecutors\StaticOrInstanceMethodExecutor.cs:line 40
+   at TechTalk.SpecRun.Framework.TaskExecutors.StaticOrInstanceMethodExecutor.Execute(ITestThreadExecutionContext testThreadExecutionContext) in c:\TeamCity\BuildAgent\work\245a3e4d646c0875\TechTalk.SpecRun.Framework.Interfaces\TaskExecutors\StaticOrInstanceMethodExecutor.cs:line 21
+   at TechTalk.SpecRun.Framework.TestAssemblyExecutor.ExecuteTestNodeTask(TestNode testNode, ITaskExecutor task, TraceEventType eventType) in c:\TeamCity\BuildAgent\work\245a3e4d646c0875\TechTalk.SpecRun.Framework.Executor\TestAssemblyExecutor.cs:line 215</pre>
+                        </td>
+                        <td>Failed in 0.002s</td>
+                    </tr>
+            </table>
+            <a name="t-1791236074.2" />
+            <h3>Scenario: Midnight 00:00 (in BerlinClock, The Berlin Clock) retry #2</h3>
+            <ul>
+                <li>Status: Failed</li>
+                <li>Start time: 1/27/2016 6:37:46 PM</li>
+                <li>Execution time (sec): 0.0020014</li>
+                <li>Thread: #0</li>
+                <li>Error: Assert.AreEqual failed. Expected:&lt;Y
+OOOO
+OOOO
+OOOOOOOOOOO
+OOOO&gt;. Actual:&lt;Y
+OOOO
+OOOO
+OOOOOOOOOOO
+OOOO&gt;. </li>
+            </ul>
+            <table class="testEvents">
+                <tr>
+                    <th>Steps</th>
+                    <th>Trace</th>
+                    <th>Result</th>
+                </tr>
+                    <tr>
+                        <td>
+                            <pre class="log">When the time is &quot;00:00:00&quot;</pre>
+                        </td>
+                        <td>
+                            <!-- [TestAct: Scenario - Midnight 00:00] -->
+                            <pre class="log">done: TheBerlinClockSteps.WhenTheTimeIs(&quot;00:00:00&quot;) (0.0s)</pre>
+                        </td>
+                        <td>Succeeded in 0s</td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <pre class="log">Then the clock should look like
+  --- multiline step argument ---
+  Y
+  OOOO
+  OOOO
+  OOOOOOOOOOO
+  OOOO</pre>
+                        </td>
+                        <td>
+                            <!-- [TestAssert: Scenario - Midnight 00:00] -->
+                            <pre class="log">error: Assert.AreEqual failed. Expected:&lt;Y
+OOOO
+OOOO
+OOOOOOOOOOO
+OOOO&gt;. Actual:&lt;Y
+OOOO
+OOOO
+OOOOOOOOOOO
+OOOO&gt;.</pre>
+                                <div class="errorMessage">Assert.AreEqual failed. Expected:&lt;Y
+OOOO
+OOOO
+OOOOOOOOOOO
+OOOO&gt;. Actual:&lt;Y
+OOOO
+OOOO
+OOOOOOOOOOO
+OOOO&gt;. </div>
+                                <pre class="stackTrace">Microsoft.VisualStudio.TestTools.UnitTesting.AssertFailedException: Assert.AreEqual failed. Expected:&lt;Y
+OOOO
+OOOO
+OOOOOOOOOOO
+OOOO&gt;. Actual:&lt;Y
+OOOO
+OOOO
+OOOOOOOOOOO
+OOOO&gt;. 
+   at Microsoft.VisualStudio.TestTools.UnitTesting.Assert.HandleFailure(String assertionName, String message)
+   at Microsoft.VisualStudio.TestTools.UnitTesting.Assert.AreEqual[T](T expected, T actual, String message, Object[] parameters)
+   at Microsoft.VisualStudio.TestTools.UnitTesting.Assert.AreEqual[T](T expected, T actual)
+   at BerlinClock.TheBerlinClockSteps.ThenTheClockShouldLookLike(String theExpectedBerlinClockOutput) in c:\git\DotNetBerlinClock\BDD\BerlinClockFeatureSteps.cs:line 25
+   at lambda_method(Closure , IContextManager , String )
+   at TechTalk.SpecFlow.Bindings.BindingInvoker.InvokeBinding(IBinding binding, IContextManager contextManager, Object[] arguments, ITestTracer testTracer, TimeSpan&amp; duration)
+   at TechTalk.SpecFlow.Infrastructure.TestExecutionEngine.ExecuteStepMatch(BindingMatch match, Object[] arguments)
+   at TechTalk.SpecFlow.Infrastructure.TestExecutionEngine.ExecuteStep(StepInstance stepInstance)
+   at TechTalk.SpecFlow.Infrastructure.TestExecutionEngine.OnAfterLastStep()
+   at TechTalk.SpecFlow.TestRunner.CollectScenarioErrors()
+   at BerlinClock.BDD.TheBerlinClockFeature.ScenarioCleanup() in c:\git\DotNetBerlinClock\BDD\BerlinClockFeatureSteps.feature.cs:line 0
+   at BerlinClock.BDD.TheBerlinClockFeature.Midnight0000() in c:\git\DotNetBerlinClock\BDD\BerlinClockFeatureSteps.feature:line 10
+   at TechTalk.SpecRun.Framework.TaskExecutors.StaticOrInstanceMethodExecutor.ExecuteInternal(ITestThreadExecutionContext testThreadExecutionContext) in c:\TeamCity\BuildAgent\work\245a3e4d646c0875\TechTalk.SpecRun.Framework.Interfaces\TaskExecutors\StaticOrInstanceMethodExecutor.cs:line 40
+   at TechTalk.SpecRun.Framework.TaskExecutors.StaticOrInstanceMethodExecutor.Execute(ITestThreadExecutionContext testThreadExecutionContext) in c:\TeamCity\BuildAgent\work\245a3e4d646c0875\TechTalk.SpecRun.Framework.Interfaces\TaskExecutors\StaticOrInstanceMethodExecutor.cs:line 21
+   at TechTalk.SpecRun.Framework.TestAssemblyExecutor.ExecuteTestNodeTask(TestNode testNode, ITaskExecutor task, TraceEventType eventType) in c:\TeamCity\BuildAgent\work\245a3e4d646c0875\TechTalk.SpecRun.Framework.Executor\TestAssemblyExecutor.cs:line 215</pre>
+                        </td>
+                        <td>Failed in 0.002s</td>
+                    </tr>
+            </table>
+            <a name="t-895847477.0" />
+            <h3>Scenario: Middle of the afternoon (in BerlinClock, The Berlin Clock)</h3>
+            <ul>
+                <li>Status: Failed</li>
+                <li>Start time: 1/27/2016 6:37:46 PM</li>
+                <li>Execution time (sec): 0.0030025</li>
+                <li>Thread: #0</li>
+                <li>Error: Assert.AreEqual failed. Expected:&lt;O
+RROO
+RRRO
+YYROOOOOOOO
+YYOO&gt;. Actual:&lt;O
+RROO
+RRRO
+YYROOOOOOOO
+YYOO&gt;. </li>
+            </ul>
+            <table class="testEvents">
+                <tr>
+                    <th>Steps</th>
+                    <th>Trace</th>
+                    <th>Result</th>
+                </tr>
+                    <tr>
+                        <td>
+                            <pre class="log">When the time is &quot;13:17:01&quot;</pre>
+                        </td>
+                        <td>
+                            <!-- [TestAct: Scenario - Middle of the afternoon] -->
+                            <pre class="log">done: TheBerlinClockSteps.WhenTheTimeIs(&quot;13:17:01&quot;) (0.0s)</pre>
+                        </td>
+                        <td>Succeeded in 0.001s</td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <pre class="log">Then the clock should look like
+  --- multiline step argument ---
+  O
+  RROO
+  RRRO
+  YYROOOOOOOO
+  YYOO</pre>
+                        </td>
+                        <td>
+                            <!-- [TestAssert: Scenario - Middle of the afternoon] -->
+                            <pre class="log">error: Assert.AreEqual failed. Expected:&lt;O
+RROO
+RRRO
+YYROOOOOOOO
+YYOO&gt;. Actual:&lt;O
+RROO
+RRRO
+YYROOOOOOOO
+YYOO&gt;.</pre>
+                                <div class="errorMessage">Assert.AreEqual failed. Expected:&lt;O
+RROO
+RRRO
+YYROOOOOOOO
+YYOO&gt;. Actual:&lt;O
+RROO
+RRRO
+YYROOOOOOOO
+YYOO&gt;. </div>
+                                <pre class="stackTrace">Microsoft.VisualStudio.TestTools.UnitTesting.AssertFailedException: Assert.AreEqual failed. Expected:&lt;O
+RROO
+RRRO
+YYROOOOOOOO
+YYOO&gt;. Actual:&lt;O
+RROO
+RRRO
+YYROOOOOOOO
+YYOO&gt;. 
+   at Microsoft.VisualStudio.TestTools.UnitTesting.Assert.HandleFailure(String assertionName, String message)
+   at Microsoft.VisualStudio.TestTools.UnitTesting.Assert.AreEqual[T](T expected, T actual, String message, Object[] parameters)
+   at Microsoft.VisualStudio.TestTools.UnitTesting.Assert.AreEqual[T](T expected, T actual)
+   at BerlinClock.TheBerlinClockSteps.ThenTheClockShouldLookLike(String theExpectedBerlinClockOutput) in c:\git\DotNetBerlinClock\BDD\BerlinClockFeatureSteps.cs:line 25
+   at lambda_method(Closure , IContextManager , String )
+   at TechTalk.SpecFlow.Bindings.BindingInvoker.InvokeBinding(IBinding binding, IContextManager contextManager, Object[] arguments, ITestTracer testTracer, TimeSpan&amp; duration)
+   at TechTalk.SpecFlow.Infrastructure.TestExecutionEngine.ExecuteStepMatch(BindingMatch match, Object[] arguments)
+   at TechTalk.SpecFlow.Infrastructure.TestExecutionEngine.ExecuteStep(StepInstance stepInstance)
+   at TechTalk.SpecFlow.Infrastructure.TestExecutionEngine.OnAfterLastStep()
+   at TechTalk.SpecFlow.TestRunner.CollectScenarioErrors()
+   at BerlinClock.BDD.TheBerlinClockFeature.ScenarioCleanup() in c:\git\DotNetBerlinClock\BDD\BerlinClockFeatureSteps.feature.cs:line 0
+   at BerlinClock.BDD.TheBerlinClockFeature.MiddleOfTheAfternoon() in c:\git\DotNetBerlinClock\BDD\BerlinClockFeatureSteps.feature:line 22
+   at TechTalk.SpecRun.Framework.TaskExecutors.StaticOrInstanceMethodExecutor.ExecuteInternal(ITestThreadExecutionContext testThreadExecutionContext) in c:\TeamCity\BuildAgent\work\245a3e4d646c0875\TechTalk.SpecRun.Framework.Interfaces\TaskExecutors\StaticOrInstanceMethodExecutor.cs:line 40
+   at TechTalk.SpecRun.Framework.TaskExecutors.StaticOrInstanceMethodExecutor.Execute(ITestThreadExecutionContext testThreadExecutionContext) in c:\TeamCity\BuildAgent\work\245a3e4d646c0875\TechTalk.SpecRun.Framework.Interfaces\TaskExecutors\StaticOrInstanceMethodExecutor.cs:line 21
+   at TechTalk.SpecRun.Framework.TestAssemblyExecutor.ExecuteTestNodeTask(TestNode testNode, ITaskExecutor task, TraceEventType eventType) in c:\TeamCity\BuildAgent\work\245a3e4d646c0875\TechTalk.SpecRun.Framework.Executor\TestAssemblyExecutor.cs:line 215</pre>
+                        </td>
+                        <td>Failed in 0.001s</td>
+                    </tr>
+            </table>
+            <a name="t-895847477.1" />
+            <h3>Scenario: Middle of the afternoon (in BerlinClock, The Berlin Clock) retry #1</h3>
+            <ul>
+                <li>Status: Failed</li>
+                <li>Start time: 1/27/2016 6:37:46 PM</li>
+                <li>Execution time (sec): 0.0020014</li>
+                <li>Thread: #0</li>
+                <li>Error: Assert.AreEqual failed. Expected:&lt;O
+RROO
+RRRO
+YYROOOOOOOO
+YYOO&gt;. Actual:&lt;O
+RROO
+RRRO
+YYROOOOOOOO
+YYOO&gt;. </li>
+            </ul>
+            <table class="testEvents">
+                <tr>
+                    <th>Steps</th>
+                    <th>Trace</th>
+                    <th>Result</th>
+                </tr>
+                    <tr>
+                        <td>
+                            <pre class="log">When the time is &quot;13:17:01&quot;</pre>
+                        </td>
+                        <td>
+                            <!-- [TestAct: Scenario - Middle of the afternoon] -->
+                            <pre class="log">done: TheBerlinClockSteps.WhenTheTimeIs(&quot;13:17:01&quot;) (0.0s)</pre>
+                        </td>
+                        <td>Succeeded in 0s</td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <pre class="log">Then the clock should look like
+  --- multiline step argument ---
+  O
+  RROO
+  RRRO
+  YYROOOOOOOO
+  YYOO</pre>
+                        </td>
+                        <td>
+                            <!-- [TestAssert: Scenario - Middle of the afternoon] -->
+                            <pre class="log">error: Assert.AreEqual failed. Expected:&lt;O
+RROO
+RRRO
+YYROOOOOOOO
+YYOO&gt;. Actual:&lt;O
+RROO
+RRRO
+YYROOOOOOOO
+YYOO&gt;.</pre>
+                                <div class="errorMessage">Assert.AreEqual failed. Expected:&lt;O
+RROO
+RRRO
+YYROOOOOOOO
+YYOO&gt;. Actual:&lt;O
+RROO
+RRRO
+YYROOOOOOOO
+YYOO&gt;. </div>
+                                <pre class="stackTrace">Microsoft.VisualStudio.TestTools.UnitTesting.AssertFailedException: Assert.AreEqual failed. Expected:&lt;O
+RROO
+RRRO
+YYROOOOOOOO
+YYOO&gt;. Actual:&lt;O
+RROO
+RRRO
+YYROOOOOOOO
+YYOO&gt;. 
+   at Microsoft.VisualStudio.TestTools.UnitTesting.Assert.HandleFailure(String assertionName, String message)
+   at Microsoft.VisualStudio.TestTools.UnitTesting.Assert.AreEqual[T](T expected, T actual, String message, Object[] parameters)
+   at Microsoft.VisualStudio.TestTools.UnitTesting.Assert.AreEqual[T](T expected, T actual)
+   at BerlinClock.TheBerlinClockSteps.ThenTheClockShouldLookLike(String theExpectedBerlinClockOutput) in c:\git\DotNetBerlinClock\BDD\BerlinClockFeatureSteps.cs:line 25
+   at lambda_method(Closure , IContextManager , String )
+   at TechTalk.SpecFlow.Bindings.BindingInvoker.InvokeBinding(IBinding binding, IContextManager contextManager, Object[] arguments, ITestTracer testTracer, TimeSpan&amp; duration)
+   at TechTalk.SpecFlow.Infrastructure.TestExecutionEngine.ExecuteStepMatch(BindingMatch match, Object[] arguments)
+   at TechTalk.SpecFlow.Infrastructure.TestExecutionEngine.ExecuteStep(StepInstance stepInstance)
+   at TechTalk.SpecFlow.Infrastructure.TestExecutionEngine.OnAfterLastStep()
+   at TechTalk.SpecFlow.TestRunner.CollectScenarioErrors()
+   at BerlinClock.BDD.TheBerlinClockFeature.ScenarioCleanup() in c:\git\DotNetBerlinClock\BDD\BerlinClockFeatureSteps.feature.cs:line 0
+   at BerlinClock.BDD.TheBerlinClockFeature.MiddleOfTheAfternoon() in c:\git\DotNetBerlinClock\BDD\BerlinClockFeatureSteps.feature:line 22
+   at TechTalk.SpecRun.Framework.TaskExecutors.StaticOrInstanceMethodExecutor.ExecuteInternal(ITestThreadExecutionContext testThreadExecutionContext) in c:\TeamCity\BuildAgent\work\245a3e4d646c0875\TechTalk.SpecRun.Framework.Interfaces\TaskExecutors\StaticOrInstanceMethodExecutor.cs:line 40
+   at TechTalk.SpecRun.Framework.TaskExecutors.StaticOrInstanceMethodExecutor.Execute(ITestThreadExecutionContext testThreadExecutionContext) in c:\TeamCity\BuildAgent\work\245a3e4d646c0875\TechTalk.SpecRun.Framework.Interfaces\TaskExecutors\StaticOrInstanceMethodExecutor.cs:line 21
+   at TechTalk.SpecRun.Framework.TestAssemblyExecutor.ExecuteTestNodeTask(TestNode testNode, ITaskExecutor task, TraceEventType eventType) in c:\TeamCity\BuildAgent\work\245a3e4d646c0875\TechTalk.SpecRun.Framework.Executor\TestAssemblyExecutor.cs:line 215</pre>
+                        </td>
+                        <td>Failed in 0.002s</td>
+                    </tr>
+            </table>
+            <a name="t-895847477.2" />
+            <h3>Scenario: Middle of the afternoon (in BerlinClock, The Berlin Clock) retry #2</h3>
+            <ul>
+                <li>Status: Failed</li>
+                <li>Start time: 1/27/2016 6:37:46 PM</li>
+                <li>Execution time (sec): 0.0020009</li>
+                <li>Thread: #0</li>
+                <li>Error: Assert.AreEqual failed. Expected:&lt;O
+RROO
+RRRO
+YYROOOOOOOO
+YYOO&gt;. Actual:&lt;O
+RROO
+RRRO
+YYROOOOOOOO
+YYOO&gt;. </li>
+            </ul>
+            <table class="testEvents">
+                <tr>
+                    <th>Steps</th>
+                    <th>Trace</th>
+                    <th>Result</th>
+                </tr>
+                    <tr>
+                        <td>
+                            <pre class="log">When the time is &quot;13:17:01&quot;</pre>
+                        </td>
+                        <td>
+                            <!-- [TestAct: Scenario - Middle of the afternoon] -->
+                            <pre class="log">done: TheBerlinClockSteps.WhenTheTimeIs(&quot;13:17:01&quot;) (0.0s)</pre>
+                        </td>
+                        <td>Succeeded in 0s</td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <pre class="log">Then the clock should look like
+  --- multiline step argument ---
+  O
+  RROO
+  RRRO
+  YYROOOOOOOO
+  YYOO</pre>
+                        </td>
+                        <td>
+                            <!-- [TestAssert: Scenario - Middle of the afternoon] -->
+                            <pre class="log">error: Assert.AreEqual failed. Expected:&lt;O
+RROO
+RRRO
+YYROOOOOOOO
+YYOO&gt;. Actual:&lt;O
+RROO
+RRRO
+YYROOOOOOOO
+YYOO&gt;.</pre>
+                                <div class="errorMessage">Assert.AreEqual failed. Expected:&lt;O
+RROO
+RRRO
+YYROOOOOOOO
+YYOO&gt;. Actual:&lt;O
+RROO
+RRRO
+YYROOOOOOOO
+YYOO&gt;. </div>
+                                <pre class="stackTrace">Microsoft.VisualStudio.TestTools.UnitTesting.AssertFailedException: Assert.AreEqual failed. Expected:&lt;O
+RROO
+RRRO
+YYROOOOOOOO
+YYOO&gt;. Actual:&lt;O
+RROO
+RRRO
+YYROOOOOOOO
+YYOO&gt;. 
+   at Microsoft.VisualStudio.TestTools.UnitTesting.Assert.HandleFailure(String assertionName, String message)
+   at Microsoft.VisualStudio.TestTools.UnitTesting.Assert.AreEqual[T](T expected, T actual, String message, Object[] parameters)
+   at Microsoft.VisualStudio.TestTools.UnitTesting.Assert.AreEqual[T](T expected, T actual)
+   at BerlinClock.TheBerlinClockSteps.ThenTheClockShouldLookLike(String theExpectedBerlinClockOutput) in c:\git\DotNetBerlinClock\BDD\BerlinClockFeatureSteps.cs:line 25
+   at lambda_method(Closure , IContextManager , String )
+   at TechTalk.SpecFlow.Bindings.BindingInvoker.InvokeBinding(IBinding binding, IContextManager contextManager, Object[] arguments, ITestTracer testTracer, TimeSpan&amp; duration)
+   at TechTalk.SpecFlow.Infrastructure.TestExecutionEngine.ExecuteStepMatch(BindingMatch match, Object[] arguments)
+   at TechTalk.SpecFlow.Infrastructure.TestExecutionEngine.ExecuteStep(StepInstance stepInstance)
+   at TechTalk.SpecFlow.Infrastructure.TestExecutionEngine.OnAfterLastStep()
+   at TechTalk.SpecFlow.TestRunner.CollectScenarioErrors()
+   at BerlinClock.BDD.TheBerlinClockFeature.ScenarioCleanup() in c:\git\DotNetBerlinClock\BDD\BerlinClockFeatureSteps.feature.cs:line 0
+   at BerlinClock.BDD.TheBerlinClockFeature.MiddleOfTheAfternoon() in c:\git\DotNetBerlinClock\BDD\BerlinClockFeatureSteps.feature:line 22
+   at TechTalk.SpecRun.Framework.TaskExecutors.StaticOrInstanceMethodExecutor.ExecuteInternal(ITestThreadExecutionContext testThreadExecutionContext) in c:\TeamCity\BuildAgent\work\245a3e4d646c0875\TechTalk.SpecRun.Framework.Interfaces\TaskExecutors\StaticOrInstanceMethodExecutor.cs:line 40
+   at TechTalk.SpecRun.Framework.TaskExecutors.StaticOrInstanceMethodExecutor.Execute(ITestThreadExecutionContext testThreadExecutionContext) in c:\TeamCity\BuildAgent\work\245a3e4d646c0875\TechTalk.SpecRun.Framework.Interfaces\TaskExecutors\StaticOrInstanceMethodExecutor.cs:line 21
+   at TechTalk.SpecRun.Framework.TestAssemblyExecutor.ExecuteTestNodeTask(TestNode testNode, ITaskExecutor task, TraceEventType eventType) in c:\TeamCity\BuildAgent\work\245a3e4d646c0875\TechTalk.SpecRun.Framework.Executor\TestAssemblyExecutor.cs:line 215</pre>
+                        </td>
+                        <td>Failed in 0.002s</td>
+                    </tr>
+            </table>
+            <a name="t-161334965.0" />
+            <h3>Scenario: Just before midnight (in BerlinClock, The Berlin Clock)</h3>
+            <ul>
+                <li>Status: Failed</li>
+                <li>Start time: 1/27/2016 6:37:46 PM</li>
+                <li>Execution time (sec): 0.0040027</li>
+                <li>Thread: #0</li>
+                <li>Error: Assert.AreEqual failed. Expected:&lt;O
+RRRR
+RRRO
+YYRYYRYYRYY
+YYYY&gt;. Actual:&lt;O
+RRRR
+RRRO
+YYRYYRYYRYY
+YYYY&gt;. </li>
+            </ul>
+            <table class="testEvents">
+                <tr>
+                    <th>Steps</th>
+                    <th>Trace</th>
+                    <th>Result</th>
+                </tr>
+                    <tr>
+                        <td>
+                            <pre class="log">When the time is &quot;23:59:59&quot;</pre>
+                        </td>
+                        <td>
+                            <!-- [TestAct: Scenario - Just before midnight] -->
+                            <pre class="log">done: TheBerlinClockSteps.WhenTheTimeIs(&quot;23:59:59&quot;) (0.0s)</pre>
+                        </td>
+                        <td>Succeeded in 0.001s</td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <pre class="log">Then the clock should look like
+  --- multiline step argument ---
+  O
+  RRRR
+  RRRO
+  YYRYYRYYRYY
+  YYYY</pre>
+                        </td>
+                        <td>
+                            <!-- [TestAssert: Scenario - Just before midnight] -->
+                            <pre class="log">error: Assert.AreEqual failed. Expected:&lt;O
+RRRR
+RRRO
+YYRYYRYYRYY
+YYYY&gt;. Actual:&lt;O
+RRRR
+RRRO
+YYRYYRYYRYY
+YYYY&gt;.</pre>
+                                <div class="errorMessage">Assert.AreEqual failed. Expected:&lt;O
+RRRR
+RRRO
+YYRYYRYYRYY
+YYYY&gt;. Actual:&lt;O
+RRRR
+RRRO
+YYRYYRYYRYY
+YYYY&gt;. </div>
+                                <pre class="stackTrace">Microsoft.VisualStudio.TestTools.UnitTesting.AssertFailedException: Assert.AreEqual failed. Expected:&lt;O
+RRRR
+RRRO
+YYRYYRYYRYY
+YYYY&gt;. Actual:&lt;O
+RRRR
+RRRO
+YYRYYRYYRYY
+YYYY&gt;. 
+   at Microsoft.VisualStudio.TestTools.UnitTesting.Assert.HandleFailure(String assertionName, String message)
+   at Microsoft.VisualStudio.TestTools.UnitTesting.Assert.AreEqual[T](T expected, T actual, String message, Object[] parameters)
+   at Microsoft.VisualStudio.TestTools.UnitTesting.Assert.AreEqual[T](T expected, T actual)
+   at BerlinClock.TheBerlinClockSteps.ThenTheClockShouldLookLike(String theExpectedBerlinClockOutput) in c:\git\DotNetBerlinClock\BDD\BerlinClockFeatureSteps.cs:line 25
+   at lambda_method(Closure , IContextManager , String )
+   at TechTalk.SpecFlow.Bindings.BindingInvoker.InvokeBinding(IBinding binding, IContextManager contextManager, Object[] arguments, ITestTracer testTracer, TimeSpan&amp; duration)
+   at TechTalk.SpecFlow.Infrastructure.TestExecutionEngine.ExecuteStepMatch(BindingMatch match, Object[] arguments)
+   at TechTalk.SpecFlow.Infrastructure.TestExecutionEngine.ExecuteStep(StepInstance stepInstance)
+   at TechTalk.SpecFlow.Infrastructure.TestExecutionEngine.OnAfterLastStep()
+   at TechTalk.SpecFlow.TestRunner.CollectScenarioErrors()
+   at BerlinClock.BDD.TheBerlinClockFeature.ScenarioCleanup() in c:\git\DotNetBerlinClock\BDD\BerlinClockFeatureSteps.feature.cs:line 0
+   at BerlinClock.BDD.TheBerlinClockFeature.JustBeforeMidnight() in c:\git\DotNetBerlinClock\BDD\BerlinClockFeatureSteps.feature:line 33
+   at TechTalk.SpecRun.Framework.TaskExecutors.StaticOrInstanceMethodExecutor.ExecuteInternal(ITestThreadExecutionContext testThreadExecutionContext) in c:\TeamCity\BuildAgent\work\245a3e4d646c0875\TechTalk.SpecRun.Framework.Interfaces\TaskExecutors\StaticOrInstanceMethodExecutor.cs:line 40
+   at TechTalk.SpecRun.Framework.TaskExecutors.StaticOrInstanceMethodExecutor.Execute(ITestThreadExecutionContext testThreadExecutionContext) in c:\TeamCity\BuildAgent\work\245a3e4d646c0875\TechTalk.SpecRun.Framework.Interfaces\TaskExecutors\StaticOrInstanceMethodExecutor.cs:line 21
+   at TechTalk.SpecRun.Framework.TestAssemblyExecutor.ExecuteTestNodeTask(TestNode testNode, ITaskExecutor task, TraceEventType eventType) in c:\TeamCity\BuildAgent\work\245a3e4d646c0875\TechTalk.SpecRun.Framework.Executor\TestAssemblyExecutor.cs:line 215</pre>
+                        </td>
+                        <td>Failed in 0.001s</td>
+                    </tr>
+            </table>
+            <a name="t-1890453340.0" />
+            <h3>Scenario: Midnight 24:00 (in BerlinClock, The Berlin Clock)</h3>
+            <ul>
+                <li>Status: Skipped</li>
+                <li>Start time: 1/27/2016 6:37:46 PM</li>
+                <li>Execution time (sec): 0</li>
+                <li>Thread: #-1</li>
+            </ul>
+            <table class="testEvents">
+                <tr>
+                    <th>Steps</th>
+                    <th>Trace</th>
+                    <th>Result</th>
+                </tr>
+            </table>
+	</body>
+</html>
+</a><div style='position: absolute; top:0px; right:10px; z-index: 1000; text-align: right; font-size: small; color: #FF5555'>
+Generated by an evaluation version of SpecRun.<br />
+This version can be used for evaluation purposes only.<br />
+For obtaining a registered license please visit <a href='http://www.specflow.org/plus'>http://www.specflow.org/plus</a>.
+</div>

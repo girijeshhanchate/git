@@ -1,0 +1,11 @@
+C:\git\DotNetBerlinClock\bin\Debug\BerlinClock.dll.config
+C:\git\DotNetBerlinClock\bin\Debug\BerlinClock.dll
+C:\git\DotNetBerlinClock\bin\Debug\BerlinClock.pdb
+C:\git\DotNetBerlinClock\bin\Debug\TechTalk.SpecFlow.dll
+C:\git\DotNetBerlinClock\obj\Debug\BerlinClock.csprojResolveAssemblyReference.cache
+C:\git\DotNetBerlinClock\obj\Debug\BerlinClock.dll
+C:\git\DotNetBerlinClock\obj\Debug\BerlinClock.pdb
+C:\git\DotNetBerlinClock\bin\Debug\Default.srprofile
+C:\git\DotNetBerlinClock\bin\Debug\SpecRun.SpecFlowPlugin.dll
+C:\git\DotNetBerlinClock\bin\Debug\TechTalk.SpecRun.dll
+C:\git\DotNetBerlinClock\bin\Debug\SpecRun.SpecFlowPlugin.pdb
